@@ -32,13 +32,7 @@ import org.nd4j.linalg.lossfunctions.LossFunctions;
 public class Emojify {
 
 	static int Series_Length = 5;
-	// 1.3 - Implementing Emojifier-V1
-	// As shown in Figure (2), the first step is to convert an input sentence into
-	// the word vector representation,
-	// which then get averaged together. Similar to the previous exercise, we will
-	// use pretrained 50-dimensional GloVe embeddings.
-	// Run the following cell to load the word_to_vec_map, which contains all the
-	// vector representations.
+
 	static Map<String, Integer> word_to_index = new HashMap<String, Integer>();
 	static Map<Integer, String> index_to_word = new HashMap<Integer, String>();
 	static Map<String, double[]> word_to_vec_map = new HashMap<String, double[]>();
@@ -69,26 +63,12 @@ public class Emojify {
 
    		for (String line : lines) {
    			String[] tokens = line.split(",");
-			X.add(tokens[0]);
+			X.add(tokens[0].replace("\"","").trim());
 			Y.add(Integer.valueOf(tokens[1]));
 		}
     }
 	  
 	static INDArray sentencesToIndices(List<String> X, Map<String, Integer> wordsToIndex, int maxLen) {
-		/*
-		 * Converts an array of sentences (strings) into an array of indices
-		 * corresponding to words in the sentences. The output shape should be such that
-		 * it can be given to `Embedding()` (described in Figure 4).
-		 * 
-		 * Arguments: X -- array of sentences (strings), of shape (m, 1) word_to_index
-		 * -- a dictionary containing the each word mapped to its index max_len --
-		 * maximum number of words in a sentence. You can assume every sentence in X is
-		 * no longer than this.
-		 * 
-		 * Returns: X_indices -- array of indices corresponding to words in the
-		 * sentences from X, of shape (m, max_len)
-		 */
-
 		int m = X.size(); // number of training examples
 
 		// # Initialize X_indices as a numpy matrix of zeros and the correct shape (≈ 1
@@ -132,29 +112,18 @@ public class Emojify {
 	static Map<Integer, String> emoji_dictionary = new HashMap<Integer, String>();
 	
 	private static MultiLayerNetwork Emojify_V2(Map<String, double[]> word_to_vec_map, Map<Integer, String> index_to_word) {
-
-		/*
-		 * Function creating the Emojify-v2 model's graph.
-		 * 
-		 * Arguments: input_shape -- shape of the input, usually (max_len,)
-		 * word_to_vec_map -- dictionary mapping every word in a vocabulary into its
-		 * 50-dimensional vector representation word_to_index -- dictionary mapping from
-		 * words to their indices in the vocabulary (400,001 words)
-		 * 
-		 * Returns: model -- a model instance
-		 */
-
 		int vocab_len = index_to_word.keySet().size(); //
 
 		MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
+				.seed(0)
                 .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT)
                 .updater(Updater.NESTEROVS)
                 .weightInit(WeightInit.XAVIER)
                 .learningRate(0.005)
 				.list()
 				.layer(0, new EmbeddingLayer.Builder().nIn(vocab_len).nOut(50).activation(Activation.IDENTITY).build())
-				.layer(1, new GravesLSTM.Builder().nIn(50).nOut(128).activation(Activation.TANH).build())
-				.layer(2, new GravesLSTM.Builder().nIn(128).nOut(5).activation(Activation.TANH).build())
+				.layer(1, new GravesLSTM.Builder().nIn(50).nOut(128).activation(Activation.TANH).dropOut(0.5).build())
+				.layer(2, new GravesLSTM.Builder().nIn(128).nOut(5).activation(Activation.TANH).dropOut(0.5).build())
 				.layer(3, new RnnOutputLayer.Builder().nIn(5).nOut(5).activation(Activation.SOFTMAX)
 				.lossFunction(LossFunctions.LossFunction.MCXENT).build())
 				.setInputType(InputType.recurrent(1))
@@ -194,15 +163,7 @@ public class Emojify {
 	}
 	  
 	public static void main(String[] args) throws Exception {
-    /* disable UI
-		//Initialize the user interface backend
-        UIServer uiServer = UIServer.getInstance();
-        //Configure where the network information (gradients, activations, score vs. time etc) is to be stored
-        //Then add the StatsListener to collect this information from the network, as it trains
-        StatsStorage statsStorage = new InMemoryStatsStorage();             //Alternative: new FileStatsStorage(File) - see UIStorageExample
-        int listenerFrequency = 1;
 
-	*/    
 
 		// initialize emoji dictionary
 		emoji_dictionary. put(0, "\u2764\uFE0F");    // :heart: prints a black instead of red heart depending on the font
@@ -214,6 +175,7 @@ public class Emojify {
 		System.out.println("Read glove file ...");
 		readGloveVecs(new ClassPathResource("data/glove.6B.50d.txt").getFile().getPath());
 
+/*
 		List<String> X1 = new ArrayList<String>();
 		X1.add("funny lol");
 		X1.add("lets play baseball");
@@ -222,15 +184,23 @@ public class Emojify {
 		INDArray X1Indices = sentencesToIndices(X1, word_to_index, Series_Length);
 		System.out.println("X1 =" + X1);
 		System.out.println("X1_indices =" + X1Indices);
-
+*/
+		// model
 		MultiLayerNetwork model = Emojify_V2(word_to_vec_map, index_to_word);
+/*
+        //Initialize the user interface backend
+        UIServer uiServer = UIServer.getInstance();
 
-		/* disable UI
-		model.setListeners(new StatsListener(statsStorage, listenerFrequency));
+        //Configure where the network information (gradients, activations, score vs. time etc) is to be stored
+        //Then add the StatsListener to collect this information from the network, as it trains
+        StatsStorage statsStorage = new InMemoryStatsStorage();             //Alternative: new FileStatsStorage(File) - see UIStorageExample
+        int listenerFrequency = 1;
+        model.setListeners(new StatsListener(statsStorage, listenerFrequency));
+
         //Attach the StatsStorage instance to the UI: this allows the contents of the StatsStorage to be visualized
         uiServer.attach(statsStorage);
-		*/
-        
+ */       
+        // read train data
 		List<String> X_train = new ArrayList<String>();
 		List<Integer> Y_train = new ArrayList<Integer>();
 		readCsv(new ClassPathResource("data/train_emoji.csv").getFile().getPath(), X_train, Y_train);
@@ -238,15 +208,15 @@ public class Emojify {
 		INDArray X_train_indices = sentencesToIndices(X_train, word_to_index, Series_Length);
 		INDArray Y_train_oh = convertToOneHot(Y_train, 5, Series_Length);
 
-		/*
+		// many to one output mask - 00001
 		INDArray labelsMask = Nd4j.zeros(Y_train.size(), 5);
 		INDArray lastColumnMask = Nd4j.ones(Y_train.size(), 1);
-
 		labelsMask.putColumn(4, lastColumnMask);
-		 */
+		 
 
-		model.setListeners(new ScoreIterationListener(1));
-		// Test
+		model.setListeners(new ScoreIterationListener(10));
+
+		// read test data
 		List<String> X_test = new ArrayList<String>();
 		List<Integer> Y_test = new ArrayList<Integer>();
 		readCsv(new ClassPathResource("data/test_emoji.csv").getFile().getPath(), X_test, Y_test);
@@ -254,9 +224,12 @@ public class Emojify {
 		INDArray X_test_indices = sentencesToIndices(X_test, word_to_index, Series_Length);
 		INDArray Y_test_oh = convertToOneHot(Y_test, 5, Series_Length);
 
-		ListDataSetIterator trainData = new ListDataSetIterator((new DataSet(X_train_indices, Y_train_oh)).asList(), 32);
-		ListDataSetIterator testData = new ListDataSetIterator(new DataSet(X_test_indices, Y_test_oh).asList());
+		ListDataSetIterator<DataSet> trainData =
+				new ListDataSetIterator<DataSet>((new DataSet(X_train_indices, Y_train_oh, null, labelsMask)).asList(), 10);
+		ListDataSetIterator<DataSet> testData =
+				new ListDataSetIterator<DataSet>(new DataSet(X_test_indices, Y_test_oh).asList());
 
+		// 50 epochs
 		for (int i = 0; i < 50; i++) {
 	        String str = "Test set evaluation at epoch %d: Accuracy = %.2f, F1 = %.2f";
 	        
@@ -265,10 +238,6 @@ public class Emojify {
 			//Evaluate on the test set:
             Evaluation evaluation = model.evaluate(testData);
             System.out.println(String.format(str, i, evaluation.accuracy(), evaluation.f1()));
-
-            testData.reset();
-            trainData.reset();
-            
 		}
 
 
@@ -288,15 +257,16 @@ public class Emojify {
 		System.out.println("Missed " + miss + " out of " + X_test.size() +
 				" acc: " + ((X_test.size() - miss) / X_test.size()) * 100 + " percent"); 
 		  
-		  // Change the sentence below to see your prediction. Make sure all the words are in the Glove embeddings.  
-		  List<String> X_test2 = new ArrayList<String>();
-		  X_test2.add("not feeling happy");
-		  
-		  X_test_indices = sentencesToIndices(X_test2, word_to_index, 5);
-		  INDArray pred4 = model.output(X_test_indices);
-		  int num4 = Nd4j.argMax(pred4.getRow(0).getColumn(4), 0).getInt(0,0);
-		      
-		  System.out.println(" Test: " + X_test2.get(0) + emoji_dictionary.get(num4));
+		// Change the sentence below to see your prediction. Make sure all the words are
+		// in the Glove embeddings.
+		List<String> X_test2 = new ArrayList<String>();
+		X_test2.add("not feeling happy");
+
+		X_test_indices = sentencesToIndices(X_test2, word_to_index, 5);
+		INDArray pred4 = model.output(X_test_indices);
+		int num4 = Nd4j.argMax(pred4.getRow(0).getColumn(4), 0).getInt(0, 0);
+
+		System.out.println(" Test: " + X_test2.get(0) + emoji_dictionary.get(num4));
 	}
 
 }
