@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.datavec.api.util.ClassPathResource;
+import org.deeplearning4j.api.storage.StatsStorage;
 import org.deeplearning4j.datasets.iterator.impl.ListDataSetIterator;
 import org.deeplearning4j.eval.Evaluation;
 import org.deeplearning4j.nn.api.OptimizationAlgorithm;
@@ -23,6 +24,9 @@ import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.params.DefaultParamInitializer;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
+import org.deeplearning4j.ui.api.UIServer;
+import org.deeplearning4j.ui.stats.StatsListener;
+import org.deeplearning4j.ui.storage.InMemoryStatsStorage;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.dataset.DataSet;
@@ -123,8 +127,8 @@ public class Emojify {
 				.list()
 				.layer(0, new EmbeddingLayer.Builder().nIn(vocab_len).nOut(50).activation(Activation.IDENTITY).build())
 				.layer(1, new GravesLSTM.Builder().nIn(50).nOut(128).activation(Activation.TANH).dropOut(0.5).build())
-				.layer(2, new GravesLSTM.Builder().nIn(128).nOut(5).activation(Activation.TANH).dropOut(0.5).build())
-				.layer(3, new RnnOutputLayer.Builder().nIn(5).nOut(5).activation(Activation.SOFTMAX)
+//				.layer(2, new GravesLSTM.Builder().nIn(128).nOut(5).activation(Activation.TANH).dropOut(0.5).build())
+				.layer(2, new RnnOutputLayer.Builder().nIn(128).nOut(5).activation(Activation.SOFTMAX)
 				.lossFunction(LossFunctions.LossFunction.MCXENT).build())
 				.setInputType(InputType.recurrent(1))
 				.pretrain(false)
@@ -187,7 +191,7 @@ public class Emojify {
 */
 		// model
 		MultiLayerNetwork model = Emojify_V2(word_to_vec_map, index_to_word);
-/*
+
         //Initialize the user interface backend
         UIServer uiServer = UIServer.getInstance();
 
@@ -199,7 +203,7 @@ public class Emojify {
 
         //Attach the StatsStorage instance to the UI: this allows the contents of the StatsStorage to be visualized
         uiServer.attach(statsStorage);
- */       
+      
         // read train data
 		List<String> X_train = new ArrayList<String>();
 		List<Integer> Y_train = new ArrayList<Integer>();
@@ -213,31 +217,28 @@ public class Emojify {
 		INDArray lastColumnMask = Nd4j.ones(Y_train.size(), 1);
 		labelsMask.putColumn(4, lastColumnMask);
 		 
-
-		model.setListeners(new ScoreIterationListener(10));
-
 		// read test data
 		List<String> X_test = new ArrayList<String>();
 		List<Integer> Y_test = new ArrayList<Integer>();
-		readCsv(new ClassPathResource("data/test_emoji.csv").getFile().getPath(), X_test, Y_test);
+		readCsv(new ClassPathResource("data/tesss.csv").getFile().getPath(), X_test, Y_test);
 		
 		INDArray X_test_indices = sentencesToIndices(X_test, word_to_index, Series_Length);
 		INDArray Y_test_oh = convertToOneHot(Y_test, 5, Series_Length);
 
 		ListDataSetIterator<DataSet> trainData =
-				new ListDataSetIterator<DataSet>((new DataSet(X_train_indices, Y_train_oh, null, labelsMask)).asList(), 10);
+				new ListDataSetIterator<DataSet>((new DataSet(X_train_indices, Y_train_oh, null, labelsMask)).asList(), 50);
 		ListDataSetIterator<DataSet> testData =
 				new ListDataSetIterator<DataSet>(new DataSet(X_test_indices, Y_test_oh).asList());
 
 		// 50 epochs
-		for (int i = 0; i < 50; i++) {
-	        String str = "Test set evaluation at epoch %d: Accuracy = %.2f, F1 = %.2f";
+		for (int i = 0; i < 100; i++) {
+	        String str = "Test set evaluation at epoch %d: Score: %.4f Accuracy = %.2f, F1 = %.2f";
 	        
 			model.fit(trainData);
             
 			//Evaluate on the test set:
             Evaluation evaluation = model.evaluate(testData);
-            System.out.println(String.format(str, i, evaluation.accuracy(), evaluation.f1()));
+            System.out.println(String.format(str, i, model.score(), evaluation.accuracy(), evaluation.f1()));
 		}
 
 
